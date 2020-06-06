@@ -34,13 +34,14 @@ void SortArray (int array[],int first,int last){
 
 int main (int argc, char *argv[]){
     //crear areglo
-    long long int n; /*tamaño del arreglo*/
+    int i;
+    int n; /*tamaño del arreglo*/
     printf("Introduzca tamaño del arreglo: ");
-    scanf("%lli",&n);
+    scanf("%d",&n);
     int arreglo [n];
     //llenar el arreglo con numeros aleatorios
     srand(getpid());
-    for (int i=0; i<n; i++){
+    for (i=0; i<n; i++){
         arreglo[i] = aleatorio(0, 10000);
     }
     int mi_rango; /*rango del proceso*/
@@ -84,7 +85,7 @@ int main (int argc, char *argv[]){
             MPI_Recv(&arreglo[maestro], tamp, MPI_INT, source, tag2, MPI_COMM_WORLD, &status);
         }
         /*insertar los datos que llegan al arreglo*/
-        for (int i=0;i<n;i++){
+        for (i=0;i<n;i++){
         printf("Elemento numero %d = %d", i+1, arreglo[i]);
         printf("\n");
         }
