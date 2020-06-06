@@ -1,4 +1,4 @@
-//#include "mpi.h"
+#include "mpi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,31 +8,107 @@ int aleatorio(int minimo, int maximo) {
   return minimo + rand() / (RAND_MAX / (maximo - minimo + 1) + 1);
 }
 
-int main ()
-{
-    //crear aareglo
+void SortArray (int array[],int first,int last){
+    int i,j,p,t;
+    // i se hace igual al índice del primer elemento
+    i= first;
+    // y j igual al índice del último elemento
+    j= last;
+    // p se hace igual al elemento pivote del arreglo
+    p= array[(first+last)/2];
+    do {
+        // se hace la partición del arreglo
+        while (array[i]<p) i++;
+        while (p<array[j]) j--;
+        if (i<=j) {
+                // se intercambian los elementos i-esimo y j-esimo del arreglo
+                t= array[i];
+                array[i]= array[j];
+                array[j]= t;
+                i++; j--;
+            }
+    } while (i<=j);
+    if (first<j) SortArray(array,first,j);
+    if (i<last) SortArray(array,i,last);
+}
+
+int main (int argc, char *argv[]){
+    //crear areglo
     long long int n; /*tamaño del arreglo*/
     printf("Introduzca tamaño del arreglo: ");
     scanf("%lli",&n);
     int arreglo [n];
-    //llenar el arreglo
+    //llenar el arreglo con numeros aleatorios
     srand(getpid());
     for (int i=0; i<n; i++){
         arreglo[i] = aleatorio(0, 10000);
     }
-    for (int i=0;i<n;i++){
+    int mi_rango; /*rango del proceso*/
+    int p; /*numero de procesos*/
+    int tamp; /*tamaño del pedazo*/
+    int resto; /*la sobra del arreglo*/
+    int maestro; /*la parte del maestro (pedazo + resto)*/
+    int dest;
+    int source;
+    int tag1;
+    int tag2;
+    MPI_Status status;
+
+    //Inicio de mpi para enviar a maquinas
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    MPI_Comm_rank(MPI_COMM_WORLD,&mi_rango);
+    tamp = (n / p);
+    resto = (n % p);
+    tag2 = 1;
+    tag1 = 2;
+
+    /*parte del maestro*/
+    if (mi_rango == 0){
+        /*enviar a cada tarea su parte de la matriz*/
+        maestro = tamp + resto;
+        for (dest=1; dest<p; dest++) {
+        MPI_Send(&maestro, 1, MPI_INT, dest, tag1, MPI_COMM_WORLD); /*se envia posicion inicial al proceso p*/
+        MPI_Send(&arreglo[maestro], tamp, MPI_INT, dest, tag2, MPI_COMM_WORLD); /*se envia dato inicial al proceso p*/
+        maestro = maestro + tamp; /*nueva posicion inicial*/
+        }
+
+        /*trabajo del maestro*/
+        maestro = 0;
+        SortArray(arreglo,maestro, tamp + resto);
+
+        /* espera para recibir los resultados de cada maquina */
+        for (i=1; i<p; i++) {
+            source = i;
+            MPI_Recv(&maestro, 1, MPI_INT, source, tag1, MPI_COMM_WORLD, &status);
+            MPI_Recv(&arreglo[maestro], tamp, MPI_INT, source, tag2, MPI_COMM_WORLD, &status);
+        }
+        /*insertar los datos que llegan al arreglo*/
+        for (int i=0;i<n;i++){
         printf("Elemento numero %d = %d", i+1, arreglo[i]);
         printf("\n");
-    }
+        }
 
+    }/*termina la parte del maestro*/
 
-    /*return 0;
-    MPI_Status status;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
-    MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
-    MPI_Send(&offset, 1, MPI_INT, dest, tag1, MPI_COMM_WORLD);
-    MPI_Recv(&offset, 1, MPI_INT, source, tag1, MPI_COMM_WORLD, &status);
-    MPI_Finalize();*/
+    /*parte de los esclavos*/
+    if (mi_rango > 0) {
+        /* Recive parte del arreglo */
+        source = 0;
+        MPI_Recv(&maestro, 1, MPI_INT, source, tag1, MPI_COMM_WORLD, &status);
+        MPI_Recv(&arreglo[maestro], tamp, MPI_INT, source, tag2, MPI_COMM_WORLD, &status);
+
+        /* hace el trabajo */
+        SortArray(arreglo,maestro, maestro + tamp);
+
+        /* envia los resultados*/
+        dest = 0;
+        MPI_Send(&maestro, 1, MPI_INT, dest, tag1, MPI_COMM_WORLD);
+        MPI_Send(&arreglo[maestro], tamp, MPI_INT, 0, tag2, MPI_COMM_WORLD);
+
+        } /* terminan los esclavos */
+
+    MPI_Finalize();
     return 0;
 } /* fin del menu*/
+
